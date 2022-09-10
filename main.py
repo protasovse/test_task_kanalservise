@@ -20,6 +20,7 @@ SHEET_ID = os.environ["SHEET_ID"]
 CURRENCY_RATE_API_URL = "http://www.cbr.ru/scripts/XML_daily.asp"
 JOB_FREQUENCY_SECOND = int(os.environ["JOB_FREQUENCY_SECOND"])
 TELEGRAM_BOT_ID = os.environ["TELEGRAM_BOT_ID"]
+TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 telegram_bot = telebot.TeleBot(TELEGRAM_BOT_ID)
 
@@ -47,6 +48,7 @@ Base = declarative_base()
 
 
 class Test(Base):
+    """Test data table model."""
     __tablename__ = "test"
 
     id = sa.Column(sa.Integer, primary_key=True)
@@ -86,7 +88,8 @@ def _get_usd_currency_rate() -> float:
 
 
 def _notify_about_delivery_date_expiration(obj: Test):
-    telegram_bot.send_message(331071628, f"{obj.id}: {obj.delivery_date} — просрочено!")
+    """Notice Service."""
+    telegram_bot.send_message(TELEGRAM_CHAT_ID, f"Заказ №{obj.id} просрочен. Дата поставки: {obj.delivery_date}.")
 
 
 def _save_to_db(db: Session, rows: list[list], usd_rate: float) -> None:
@@ -103,6 +106,7 @@ def _save_to_db(db: Session, rows: list[list], usd_rate: float) -> None:
 
         # Check delivery date expiration.
         if not obj.is_notified and obj.delivery_date < datetime.date.today():
+            # Notify, if expiration.
             _notify_about_delivery_date_expiration(obj)
             obj.is_notified = True
             db.commit()
@@ -113,7 +117,7 @@ tl = Timeloop()
 
 @tl.job(interval=datetime.timedelta(seconds=JOB_FREQUENCY_SECOND))
 def job_update_date() -> None:
-    """Task for run update data in database."""
+    """Periodical task for run update data in database."""
     rows = _get_order_data()
     usd_rate = _get_usd_currency_rate()
     _save_to_db(_db, rows, usd_rate)
